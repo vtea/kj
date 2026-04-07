@@ -118,18 +118,24 @@ export const getCommonEntranceList = () =>
 /** 后台图库：澳门 / 香港 / 其他（gallery_type=sicai，可选 sicai_channel 筛选） */
 export type GalleryTypeKey = 'aomen' | 'xianggang' | 'sicai';
 
+/** 与后台 `Gallery::MAX_PAGE_LIMIT` 一致，单次列表最多 8 条 */
+export const GALLERY_LIST_PAGE_MAX = 8;
+
 export const getGalleryList = (params: {
   gallery_type: GalleryTypeKey;
   sicai_channel?: number;
   page?: number;
   limit?: number;
-}) =>
-  axios({
+}) => {
+  const cap = GALLERY_LIST_PAGE_MAX;
+  const lim = Math.min(cap, Math.max(1, params.limit ?? cap));
+  return axios({
     url: 'api/gallery/list',
     method: 'get',
     params: {
       ...params,
       page: params.page ?? 1,
-      limit: params.limit ?? 10,
+      limit: lim,
     },
   });
+};

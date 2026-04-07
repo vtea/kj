@@ -1,7 +1,11 @@
 <script lang="ts" setup>
 import { ref, computed } from "vue";
 import { onLoad, onShow, onReachBottom } from "@dcloudio/uni-app";
-import { getGalleryList, type GalleryTypeKey } from "@/api/index.ts";
+import {
+  getGalleryList,
+  GALLERY_LIST_PAGE_MAX,
+  type GalleryTypeKey,
+} from "@/api/index.ts";
 import { staticAsset } from "@/utils/common";
 import { getApiAssetOrigin } from "@/utils/apiBase";
 
@@ -15,7 +19,7 @@ type GalleryRow = {
   weigh?: number;
 };
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = GALLERY_LIST_PAGE_MAX;
 
 const loading = ref(false);
 const loadingMore = ref(false);
@@ -120,7 +124,7 @@ const fetchGallery = async (reset: boolean) => {
 };
 
 /**
- * 入口：`/pages/gallery/gallery?region=aomen|xianggang|sicai`（sicai 为「其他图库」；列表分页每页 10 条）
+ * 入口：`/pages/gallery/gallery?region=aomen|xianggang|sicai`（sicai 为「其他图库」；列表分页每页 8 条）
  */
 onLoad((options?: Record<string, string>) => {
   const t = options?.region ?? options?.gallery_type;

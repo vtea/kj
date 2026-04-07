@@ -35,7 +35,13 @@ if (api) {
   );
 }
 
-rewrites.push(routes.rewrite("/(.*)", "/index.html"));
+// 勿把 /static、/assets、/api、/uploads 回写成 index.html，否则 .svg 等会拿到 HTML 导致裂图
+rewrites.push(
+  routes.rewrite(
+    "/((?!static(/|$)|assets(/|$)|api(/|$)|uploads(/|$)).*)",
+    "/index.html"
+  )
+);
 
 export const config: VercelConfig = {
   framework: null,

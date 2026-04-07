@@ -22,6 +22,12 @@
 4. **每个客户配自己的后台地址**：在对应 Vercel 项目的 **Settings → Environment Variables** 中设置 **`VITE_API_BASE_URL`**（或仅构建用 **`API_BACKEND_ORIGIN`**）为后台根地址，例如 `https://api.customer.com`（不要末尾 `/`）。构建时 `vercel.ts` 会据此生成 `/api/*`、`/uploads/*` 反代，**不会**写死在仓库里。前端页面域名（预览 / 生产 / 自定义）仍自动用当前源站请求 `/api`，无需按域名再配一遍。若浏览器要**直连**跨域 API（且后端已配好 CORS），再加 `VITE_API_CROSS_ORIGIN=true`。
 5. 连接仓库后，推送到已关联分支会自动触发构建与发布。
 
+### 静态资源裂图（例如 `/static/home-nav/*.svg`）
+
+- 构建产物里必须有对应文件：本地执行 `npm run build:h5` 后检查 `dist/build/h5/static/`（含 `home-nav`）。[`vite.config.ts`](vite.config.ts) 在 `closeBundle` 会**整目录同步**根目录 `static/`，避免 uni 默认拷贝在子目录上偶发不完整。
+- [`vercel.ts`](vercel.ts) 的 SPA 回退**不会**把 `/static/`、`/assets/`（以及 `/api/`、`/uploads/`）改写成 `index.html`，减少把 HTML 当图片请求的情况。
+- 若线上仍裂图且 Network 里状态为 **304**：用无痕窗口直接打开该 SVG 的 URL，看响应 **`Content-Type`** 是否为 `image/svg+xml`、正文是否以 `<svg` 开头。若实际是 HTML，可在 Vercel 对该部署 **Redeploy（并清除构建/数据缓存）**，避免边缘仍沿用旧缓存。
+
 ### 仅推送 `kj` 目录为独立仓库时
 
 若 GitHub 上只有 `kj` 项目根目录（没有外层 `frontend/qianduan`），则 **不要** 填写 Root Directory，直接导入即可；`vercel.ts` 仍在项目根目录生效。

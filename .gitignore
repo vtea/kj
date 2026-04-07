@@ -1,0 +1,4 @@
+/.env.development.example
+/.idea
+/dist
+/node_modules

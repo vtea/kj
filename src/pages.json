@@ -1,0 +1,35 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationStyle": "custom",
+				"hideTabBar": true,
+				"onReachBottomDistance": 140
+			}
+		},
+		{
+			"path": "pages/index/history",
+			"style": {
+				"navigationBarTitleText": "历史记录",
+				"navigationStyle": "custom",
+				"hideTabBar": true,
+				"onReachBottomDistance": 120
+			}
+		},
+		{
+			"path": "pages/gallery/gallery",
+			"style": {
+				"navigationBarTitleText": "六合图库",
+				"navigationStyle": "custom",
+				"hideTabBar": true
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "金多寶",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F8F8F8"
+	}
+}

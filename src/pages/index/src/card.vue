@@ -2,8 +2,9 @@
 import { ref, onMounted, onUnmounted, watch } from "vue";
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
-import { getSx, ballBgColor } from "@/utils/zodiac";
+import { getSx } from "@/utils/zodiac";
 import { openUrl } from "@/utils/common";
+import { lotteryBallImageStyle, lotteryBallWave } from "@/utils/lotteryBall";
 
 const emit = defineEmits<{
   refresh: [];
@@ -12,6 +13,8 @@ const emit = defineEmits<{
 }>();
 const listData = ref<any>({});
 const typeData = ref(1);
+/** 下一期截止时间已到（倒计时结束）：球位改显示「正在进行搅珠中」 */
+const isPastDeadline = ref(false);
 
 const init = (data: any, type: number) => {
   typeData.value = type;
@@ -19,15 +22,15 @@ const init = (data: any, type: number) => {
 };
 
 /**
- * 是否与父级同步「搅珠中」状态：有期号且 code1–7 任一空则视为后端仍在开奖流程中
+ * 是否与父级同步「搅珠中」状态：号码未齐，或下一期截止时间已到（倒计时已结束）
  */
 const syncDrawingLive = () => {
   const d = listData.value;
-  emit("drawing-live", !!(d && d.expect) && openUrl(d));
+  const incomplete = !!(d && d.expect) && openUrl(d);
+  emit("drawing-live", incomplete || isPastDeadline.value);
 };
 watch(listData, syncDrawingLive, { deep: true, immediate: true });
-
-const ballBg = ballBgColor;
+watch(isPastDeadline, syncDrawingLive);
 
 /**
  * 获取第 idx 个球的生肖名
@@ -53,8 +56,21 @@ const TEN_MIN = 10 * 60 * 1000;
 
 const calcCountdown = () => {
   const t = listData.value?.nextTime;
-  if (!t) { countdown.value = "--:--:--"; isUrgent.value = false; return; }
-  const diff = new Date(t).getTime() - Date.now();
+  if (!t) {
+    countdown.value = "--:--:--";
+    isUrgent.value = false;
+    isPastDeadline.value = false;
+    return;
+  }
+  const ts = new Date(t).getTime();
+  if (Number.isNaN(ts)) {
+    countdown.value = "--:--:--";
+    isUrgent.value = false;
+    isPastDeadline.value = false;
+    return;
+  }
+  const diff = ts - Date.now();
+  isPastDeadline.value = diff <= 0;
   if (diff <= 0) {
     countdown.value = openUrl(listData.value) ? "--:--:--" : "00:00:00";
     isUrgent.value = false;
@@ -100,18 +116,29 @@ defineExpose({ init });
       </div>
     </div>
 
-    <!-- 球区 -->
-    <div class="kballs">
+    <!-- 球区：截止后仍可能返回上一期号码，统一改文案避免误导 -->
+    <div v-if="isPastDeadline" class="kballs kballs--drawing" role="status" aria-live="polite">
+      <span class="kballs-drawing-text">正在进行搅珠中</span>
+    </div>
+    <div v-else class="kballs">
       <div class="kball-item" v-for="(key, idx) in codes" :key="key">
-        <div class="kball" :style="{ background: listData[key] ? ballBg(listData[key]) : '#ccc' }">
-          {{ listData[key] || "?" }}
+        <div
+          class="kball"
+          :class="`kball--wave-${lotteryBallWave(listData[key])}`"
+          :style="lotteryBallImageStyle"
+        >
+          <span class="kball-num">{{ listData[key] || "?" }}</span>
         </div>
         <span class="ksx">{{ getZodiacName(idx, listData[key]) }}</span>
       </div>
       <div class="kball-plus">+</div>
       <div class="kball-item">
-        <div class="kball kball-te" :style="{ background: listData.code7 ? ballBg(listData.code7) : '#ccc' }">
-          {{ listData.code7 || "?" }}
+        <div
+          class="kball kball-te"
+          :class="`kball--wave-${lotteryBallWave(listData.code7)}`"
+          :style="lotteryBallImageStyle"
+        >
+          <span class="kball-num">{{ listData.code7 || "?" }}</span>
         </div>
         <span class="ksx">{{ getZodiacName(6, listData.code7) }}</span>
       </div>
@@ -184,28 +211,54 @@ defineExpose({ init });
   min-width: 0;
 }
 .kball {
+  position: relative;
   width: 44px;
   height: 44px;
   border-radius: 50%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  color: #fff;
+  box-sizing: border-box;
+  padding-top: 6px;
   font-size: 19px;
   font-weight: 800;
   line-height: 1;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.15);
-  box-shadow:
-    inset 0 2px 4px rgba(255,255,255,0.25),
-    inset 0 -3px 5px rgba(0,0,0,0.18),
-    0 2px 6px rgba(0,0,0,0.13);
+  background-color: #cfd8dc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+/** 数字放在球体偏上浅色区，白底衬托避免与底部深色纹理叠在一起 */
+.kball-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 3px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #141414;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+.kball--wave-red {
+  box-shadow: 0 0 0 2px #d32f2f, 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.kball--wave-green {
+  box-shadow: 0 0 0 2px #2e7d32, 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.kball--wave-blue {
+  box-shadow: 0 0 0 2px #1565c0, 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.kball--wave-muted {
+  box-shadow: 0 0 0 2px #bdbdbd, 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 .kball-te {
   border: 2.5px solid #e8c326;
   box-shadow:
-    inset 0 2px 4px rgba(255,255,255,0.25),
-    inset 0 -3px 5px rgba(0,0,0,0.18),
-    0 2px 8px rgba(232,195,38,0.3);
+    0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 3px 12px rgba(232, 195, 38, 0.32);
 }
 .ksx {
   margin-top: 4px;
@@ -221,7 +274,30 @@ defineExpose({ init });
   font-weight: 700;
   color: #bbb;
   padding: 0 3px;
-  height: 44px;
+  align-self: flex-start;
+  margin-top: 14px;
+  height: auto;
+  min-height: 20px;
+}
+
+.kballs--drawing {
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 14px;
+}
+.kballs-drawing-text {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--c-green, #2e7d32);
+  letter-spacing: 3px;
+  text-align: center;
+  line-height: 1.4;
+  animation: kballs-drawing-pulse 1.4s ease-in-out infinite;
+}
+@keyframes kballs-drawing-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .kcard-bottom {

@@ -2,7 +2,8 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { onLoad, onReachBottom } from "@dcloudio/uni-app";
 import { getHistoryPage, type HistoryModuleKey } from "@/api/index.ts";
-import { getSx, ballBgColor } from "@/utils/zodiac";
+import { getSx } from "@/utils/zodiac";
+import { lotteryBallImageStyle, lotteryBallWave } from "@/utils/lotteryBall";
 
 const codes = ["code1", "code2", "code3", "code4", "code5", "code6"];
 
@@ -144,8 +145,12 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
         </div>
         <div class="hist-balls">
           <div class="hball-item" v-for="k in codes" :key="k">
-            <div class="hball" :style="{ background: ballBgColor(item[k]) }">
-              {{ item?.[k] ?? "--" }}
+            <div
+              class="hball"
+              :class="`hball--wave-${lotteryBallWave(item[k])}`"
+              :style="lotteryBallImageStyle"
+            >
+              <span class="hball-num">{{ item?.[k] ?? "--" }}</span>
             </div>
             <span class="hsx">{{ getSx(item[k]).name }}</span>
           </div>
@@ -153,9 +158,10 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
           <div class="hball-item">
             <div
               class="hball hball-te"
-              :style="{ background: ballBgColor(item.code7) }"
+              :class="`hball--wave-${lotteryBallWave(item.code7)}`"
+              :style="lotteryBallImageStyle"
             >
-              {{ item?.code7 ?? "--" }}
+              <span class="hball-num">{{ item?.code7 ?? "--" }}</span>
             </div>
             <span class="hsx">{{ getSx(item.code7).name }}</span>
           </div>
@@ -268,24 +274,53 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
   align-items: center;
 }
 .hball {
+  position: relative;
   width: 38px;
   height: 38px;
   border-radius: 50%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  color: #fff;
+  box-sizing: border-box;
+  padding-top: 5px;
   font-size: 16px;
   font-weight: 800;
   line-height: 1;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
-  box-shadow:
-    inset 0 2px 3px rgba(255, 255, 255, 0.2),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.15),
-    0 1px 4px rgba(0, 0, 0, 0.1);
+  background-color: #cfd8dc;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.hball-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  padding: 2px 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #141414;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+.hball--wave-red {
+  box-shadow: 0 0 0 2px #d32f2f, 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.hball--wave-green {
+  box-shadow: 0 0 0 2px #2e7d32, 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.hball--wave-blue {
+  box-shadow: 0 0 0 2px #1565c0, 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.hball--wave-muted {
+  box-shadow: 0 0 0 2px #bdbdbd, 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 .hball-te {
   border: 2px solid #e8c326;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 3px 10px rgba(232, 195, 38, 0.28);
 }
 .hsx {
   margin-top: 3px;
@@ -300,7 +335,10 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
   font-size: 15px;
   font-weight: 700;
   color: #bbb;
-  height: 38px;
+  align-self: flex-start;
+  margin-top: 11px;
+  height: auto;
+  min-height: 18px;
   padding: 0 2px;
   flex-shrink: 0;
 }

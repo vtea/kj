@@ -9,7 +9,7 @@ onShow(() => {});
 onHide(() => {});
 </script>
 <style lang="scss">
-@import "./styles/vars.scss";
+@use "./styles/vars.scss";
 
 page {
   background: var(--c-bg);

@@ -28,7 +28,7 @@ const canadaData = ref<any>({});
 const nextDrawTime = ref<any>(new Date());
 const getAll = async () => {
   const { data } = await getIndexLast();
-  cardCanada.value.init(data?.last_data, 1);
+  cardCanada.value?.init(data?.last_data, 1);
   canadaData.value = data?.last_data ?? {};
   nextDrawTime.value = new Date(data?.last_data?.nextTime);
 
@@ -64,7 +64,7 @@ watch(
     const b = new Date(bTime - aTime).getMinutes();
     if (bTime > aTime && b <= 5) {
       // 调用接口
-      cardCanada.value.init({}, 1);
+      cardCanada.value?.init({}, 1);
     } else if (bTime > aTime && b > 5) {
       getAll();
       clearInterval(intervalId);
@@ -171,6 +171,7 @@ const setGreenTab = async (k: GreenTab) => {
   if (activeGreenTab.value === k) return
   activeGreenTab.value = k
   await loadCardData(k)
+  await loadHomeGallerySpot(true)
 }
 
 /**
@@ -490,10 +491,29 @@ const onQuickJumpTap = (item: QuickJumpItem, flatIndex: number) => {
   onBannerTap({ id: item.id, image: "", url: u });
 };
 
-/** 首页精选图库：首屏条数与每次下滑追加条数 */
+/** 首页精选图库：每页条数（与当前彩种 tab 一致：澳门 / 香港 各拉对应分区） */
 const HOME_GALLERY_PAGE_SIZE = 8;
 
-/** 首页图库卡片（澳门 / 香港 / 其他合并展示，sicai 类型） */
+/**
+ * 绿标 tab → 图库 API 分区（与开奖数据源一致）
+ * - jianada：后台 xtlhc / 常显示「午夜彩」→ 私彩图库 sicai（勿用澳门图）
+ * - aomen：澳门图库
+ * - xianggang：香港图库
+ */
+const greenTabToGalleryType = (tab: GreenTab): GalleryTypeKey => {
+  if (tab === "xianggang") return "xianggang";
+  if (tab === "aomen") return "aomen";
+  return "sicai";
+};
+
+const greenTabToGalleryRegionTag = (tab: GreenTab): string => {
+  if (tab === "xianggang") return "香港";
+  if (tab === "aomen") return "澳门";
+  const n = tabNames.value.jianada?.trim();
+  return n || "其他";
+};
+
+/** 首页图库卡片 */
 type HomeGalleryCard = {
   id: number;
   title: string;
@@ -504,21 +524,17 @@ type HomeGalleryCard = {
   sicai_channel: number | null;
 };
 
-/** 三区合并后的完整列表（接口一次拉全，前端分页展示） */
+/** 当前彩种下已加载的图库列表（首屏 8 条，触底追加下一页） */
 const homeGalleryFull = ref<HomeGalleryCard[]>([]);
-/** 当前已展开条数（初始 8，触底 +8） */
-const homeGalleryVisibleCount = ref(HOME_GALLERY_PAGE_SIZE);
+/** 下一页请求页码（从 1 起；首屏成功后为 2） */
+const homeGalleryNextPage = ref(1);
 const gallerySpotLoading = ref(false);
+const galleryMoreLoading = ref(false);
+const homeGalleryHasMore = ref(false);
 /** 触底加载节流，避免一次滑到底连续触发多次 */
 let galleryLoadMoreLock = false;
 
-const homeGalleryList = computed(() =>
-  homeGalleryFull.value.slice(0, homeGalleryVisibleCount.value)
-);
-
-const homeGalleryHasMore = computed(
-  () => homeGalleryVisibleCount.value < homeGalleryFull.value.length
-);
+const homeGalleryList = computed(() => homeGalleryFull.value);
 
 /**
  * 将单次图库接口响应转为首页卡片（全量，顺序与后台一致）
@@ -547,19 +563,20 @@ const sliceGalleryToCards = (
 };
 
 /**
- * 主滚动区触底：每次多展示 8 条图库卡片
+ * 主滚动区触底：请求下一页 8 条（同当前彩种分区）
  */
-const loadMoreHomeGallery = () => {
-  if (!homeGalleryHasMore.value || gallerySpotLoading.value) return;
+const loadMoreHomeGallery = async () => {
+  if (!homeGalleryHasMore.value || gallerySpotLoading.value || galleryMoreLoading.value)
+    return;
   if (galleryLoadMoreLock) return;
   galleryLoadMoreLock = true;
-  homeGalleryVisibleCount.value = Math.min(
-    homeGalleryVisibleCount.value + HOME_GALLERY_PAGE_SIZE,
-    homeGalleryFull.value.length
-  );
-  setTimeout(() => {
-    galleryLoadMoreLock = false;
-  }, 350);
+  try {
+    await loadHomeGallerySpot(false);
+  } finally {
+    setTimeout(() => {
+      galleryLoadMoreLock = false;
+    }, 350);
+  }
 };
 
 /**
@@ -580,7 +597,8 @@ const onMainScroll = (e: Event) => {
  */
 // #ifdef H5
 const onWindowScrollForGallery = () => {
-  if (!homeGalleryHasMore.value || gallerySpotLoading.value) return;
+  if (!homeGalleryHasMore.value || gallerySpotLoading.value || galleryMoreLoading.value)
+    return;
   const docEl = document.documentElement;
   const body = document.body;
   const top = window.scrollY ?? docEl.scrollTop ?? body.scrollTop ?? 0;
@@ -595,34 +613,60 @@ onReachBottom(() => {
   loadMoreHomeGallery();
 });
 
+type GalleryListMeta = { has_more?: boolean; total?: number };
+
 /**
- * 并行拉取澳门、香港、其他图库列表，合并后默认只展示前 8 条，下滑继续加载
+ * 按当前绿标 tab 拉取对应分区图库（jianada→sicai，aomen→aomen，xianggang→xianggang），分页每页 8 条
  */
-const loadHomeGallerySpot = async () => {
-  gallerySpotLoading.value = true;
+const loadHomeGallerySpot = async (reset = true) => {
+  if (reset) {
+    homeGalleryFull.value = [];
+    homeGalleryNextPage.value = 1;
+    homeGalleryHasMore.value = false;
+  }
+  const useFullLoading = reset || homeGalleryFull.value.length === 0;
+  if (useFullLoading) {
+    gallerySpotLoading.value = true;
+  } else {
+    galleryMoreLoading.value = true;
+  }
   try {
-    const [aomenR, xgR, scR] = await Promise.allSettled([
-      getGalleryList({ gallery_type: "aomen" }),
-      getGalleryList({ gallery_type: "xianggang" }),
-      getGalleryList({ gallery_type: "sicai" }),
-    ]);
-    const out: HomeGalleryCard[] = [];
-    if (aomenR.status === "fulfilled") {
-      out.push(...sliceGalleryToCards(aomenR.value, "aomen", "澳门"));
+    const tab = activeGreenTab.value;
+    const gt = greenTabToGalleryType(tab);
+    const tag = greenTabToGalleryRegionTag(tab);
+    const pageToFetch = homeGalleryNextPage.value;
+    const res = await getGalleryList({
+      gallery_type: gt,
+      page: pageToFetch,
+      limit: HOME_GALLERY_PAGE_SIZE,
+    });
+    const cards = sliceGalleryToCards(res, gt, tag);
+    const data = (res as { data?: GalleryListMeta })?.data;
+    if (reset) {
+      homeGalleryFull.value = cards;
+    } else {
+      homeGalleryFull.value = [...homeGalleryFull.value, ...cards];
     }
-    if (xgR.status === "fulfilled") {
-      out.push(...sliceGalleryToCards(xgR.value, "xianggang", "香港"));
+    if (typeof data?.has_more === "boolean") {
+      homeGalleryHasMore.value = data.has_more;
+    } else if (typeof data?.total === "number") {
+      homeGalleryHasMore.value = homeGalleryFull.value.length < data.total;
+    } else {
+      homeGalleryHasMore.value = cards.length >= HOME_GALLERY_PAGE_SIZE;
     }
-    if (scR.status === "fulfilled") {
-      out.push(...sliceGalleryToCards(scR.value, "sicai", "其他"));
+    if (cards.length === 0) {
+      homeGalleryHasMore.value = false;
+    } else {
+      homeGalleryNextPage.value = pageToFetch + 1;
     }
-    homeGalleryFull.value = out;
-    homeGalleryVisibleCount.value = Math.min(
-      HOME_GALLERY_PAGE_SIZE,
-      out.length
-    );
+  } catch {
+    if (reset) {
+      homeGalleryFull.value = [];
+    }
+    homeGalleryHasMore.value = false;
   } finally {
     gallerySpotLoading.value = false;
+    galleryMoreLoading.value = false;
   }
 };
 
@@ -631,9 +675,10 @@ const loadHomeGallerySpot = async () => {
  */
 const openGalleryPage = (card?: HomeGalleryCard) => {
   let url = "/pages/gallery/gallery";
-  if (card) {
-    url += `?region=${encodeURIComponent(card.gallery_type)}`;
-  }
+  const region = card
+    ? card.gallery_type
+    : greenTabToGalleryType(activeGreenTab.value);
+  url += `?region=${encodeURIComponent(region)}`;
   uni.navigateTo({ url });
 };
 
@@ -974,7 +1019,7 @@ const goGalleryListFromPreview = () => {
         </div>
       </section>
 
-      <!-- 精选图库：后台澳门/香港/其他，上图下文、响应式多列 -->
+      <!-- 精选图库：随当前彩种（午夜彩/xTlhc→其他图库 sicai，澳门→aomen，香港→xianggang） -->
       <section class="home-gal-spot" aria-label="精选图库">
         <div class="home-gal-spot-head">
           <h2 class="home-gal-spot-title">精选图库</h2>
@@ -1040,7 +1085,18 @@ const goGalleryListFromPreview = () => {
           </div>
         </div>
         <div
-          v-if="!gallerySpotLoading && homeGalleryList.length > 0 && homeGalleryHasMore"
+          v-if="galleryMoreLoading"
+          class="home-gal-spot-foot home-gal-spot-foot--muted"
+        >
+          加载更多…
+        </div>
+        <div
+          v-else-if="
+            !gallerySpotLoading &&
+            !galleryMoreLoading &&
+            homeGalleryList.length > 0 &&
+            homeGalleryHasMore
+          "
           class="home-gal-spot-foot"
         >
           下滑加载更多
@@ -1048,7 +1104,8 @@ const goGalleryListFromPreview = () => {
         <div
           v-else-if="
             !gallerySpotLoading &&
-            homeGalleryFull.length > HOME_GALLERY_PAGE_SIZE &&
+            !galleryMoreLoading &&
+            homeGalleryList.length > 0 &&
             !homeGalleryHasMore
           "
           class="home-gal-spot-foot home-gal-spot-foot--muted"

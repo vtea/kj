@@ -22,7 +22,8 @@
 			"style": {
 				"navigationBarTitleText": "六合图库",
 				"navigationStyle": "custom",
-				"hideTabBar": true
+				"hideTabBar": true,
+				"onReachBottomDistance": 120
 			}
 		}
 	],

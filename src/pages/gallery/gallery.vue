@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { ref, computed, watch } from "vue";
-import { onLoad, onShow } from "@dcloudio/uni-app";
+import { onLoad, onShow, onReachBottom } from "@dcloudio/uni-app";
 import { getGalleryList, type GalleryTypeKey } from "@/api/index.ts";
 import { staticAsset } from "@/utils/common";
 import { getApiAssetOrigin } from "@/utils/apiBase";
@@ -15,7 +15,13 @@ type GalleryRow = {
   weigh?: number;
 };
 
+const PAGE_SIZE = 10;
+
 const loading = ref(false);
+const loadingMore = ref(false);
+const hasMore = ref(true);
+/** 下一页要请求的页码（从 1 起）；首屏成功后为 2 */
+const nextPage = ref(1);
 const rawList = ref<GalleryRow[]>([]);
 
 /** 地区：澳门 / 香港 / 其他（接口仍为 gallery_type=sicai） */
@@ -56,29 +62,75 @@ onLoad((options?: Record<string, string>) => {
 const GALLERY_LIST_REFRESH_MS = 90_000;
 let lastGalleryListFetchAt = 0;
 
-const loadList = async () => {
-  loading.value = true;
+type GalleryListPayload = {
+  list?: unknown;
+  has_more?: boolean;
+  total?: number;
+};
+
+const fetchGallery = async (reset: boolean) => {
+  if (!reset) {
+    if (!hasMore.value || loading.value || loadingMore.value) return;
+  } else {
+    loadingMore.value = false;
+    nextPage.value = 1;
+    rawList.value = [];
+    hasMore.value = true;
+  }
+
+  const pageToFetch = reset ? 1 : nextPage.value;
+  const isFirstScreen = reset || rawList.value.length === 0;
+  if (isFirstScreen) {
+    loading.value = true;
+  } else {
+    loadingMore.value = true;
+  }
   try {
-    /** 其他图库不传 sicai_channel，后端返回该类型下全部记录 */
-    const res = await getGalleryList({ gallery_type: regionTab.value });
-    const list = (res as { data?: { list?: unknown } })?.data?.list;
-    rawList.value = Array.isArray(list)
+    const res = await getGalleryList({
+      gallery_type: regionTab.value,
+      page: pageToFetch,
+      limit: PAGE_SIZE,
+    });
+    const data = (res as { data?: GalleryListPayload })?.data;
+    const list = data?.list;
+    const mapped: GalleryRow[] = Array.isArray(list)
       ? (list as GalleryRow[]).map((it) => ({
           ...it,
           image: resolveImg(String(it.image || "")),
         }))
       : [];
+    if (reset) {
+      rawList.value = mapped;
+    } else {
+      rawList.value = [...rawList.value, ...mapped];
+    }
+    if (typeof data?.has_more === "boolean") {
+      hasMore.value = data.has_more;
+    } else if (typeof data?.total === "number") {
+      hasMore.value = rawList.value.length < data.total;
+    } else {
+      hasMore.value = mapped.length >= PAGE_SIZE;
+    }
+    if (mapped.length === 0) {
+      hasMore.value = false;
+    } else {
+      nextPage.value = pageToFetch + 1;
+    }
+    lastGalleryListFetchAt = Date.now();
   } catch {
-    rawList.value = [];
+    if (reset) {
+      rawList.value = [];
+    }
+    hasMore.value = false;
     uni.showToast({ title: "加载失败", icon: "none" });
   } finally {
     loading.value = false;
-    lastGalleryListFetchAt = Date.now();
+    loadingMore.value = false;
   }
 };
 
 watch(regionTab, () => {
-  loadList();
+  fetchGallery(true);
 });
 
 onShow(() => {
@@ -89,7 +141,12 @@ onShow(() => {
   ) {
     return;
   }
-  loadList();
+  fetchGallery(true);
+});
+
+onReachBottom(() => {
+  if (!hasMore.value || loading.value || loadingMore.value) return;
+  fetchGallery(false);
 });
 
 const filteredList = computed(() => {
@@ -247,29 +304,35 @@ const catOptions: { key: CatKey; label: string }[] = [
 
     <!-- 瀑布双列 -->
     <div class="gal-body">
-      <div v-if="loading" class="gal-loading">加载中…</div>
+      <div v-if="loading && rawList.length === 0" class="gal-loading">加载中…</div>
       <div v-else-if="filteredList.length === 0" class="gal-empty">
         暂无图库，请在后台添加并设为「已显示」
       </div>
-      <div v-else class="gal-masonry">
-        <div
-          v-for="item in filteredList"
-          :key="item.id"
-          class="gal-card"
-          @click="onPreview(item)"
-        >
-          <div class="gal-card-cap">
-            <span class="gal-cap-expect">{{ item.expect || "—" }}</span>
-            <span class="gal-cap-title">{{ item.title || "未命名" }}</span>
+      <template v-else>
+        <div class="gal-masonry">
+          <div
+            v-for="item in filteredList"
+            :key="item.id"
+            class="gal-card"
+            @click="onPreview(item)"
+          >
+            <div class="gal-card-cap">
+              <span class="gal-cap-expect">{{ item.expect || "—" }}</span>
+              <span class="gal-cap-title">{{ item.title || "未命名" }}</span>
+            </div>
+            <image
+              class="gal-card-img"
+              :class="{ 'gal-card-img--bw': yearPick?.bw }"
+              :src="item.image"
+              mode="widthFix"
+            />
           </div>
-          <image
-            class="gal-card-img"
-            :class="{ 'gal-card-img--bw': yearPick?.bw }"
-            :src="item.image"
-            mode="widthFix"
-          />
         </div>
-      </div>
+        <div v-if="loadingMore" class="gal-load-more">加载更多…</div>
+        <div v-else-if="!hasMore && rawList.length > 0" class="gal-load-end">
+          没有更多了
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -478,6 +541,13 @@ const catOptions: { key: CatKey; label: string }[] = [
   text-align: center;
   padding: 32px 16px;
   font-size: 13px;
+  color: var(--c-text-muted);
+}
+.gal-load-more,
+.gal-load-end {
+  text-align: center;
+  padding: 14px 12px 22px;
+  font-size: 12px;
   color: var(--c-text-muted);
 }
 .gal-masonry {

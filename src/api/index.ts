@@ -121,4 +121,7 @@ export type GalleryTypeKey = 'aomen' | 'xianggang' | 'sicai';
 export const getGalleryList = (params: {
   gallery_type: GalleryTypeKey;
   sicai_channel?: number;
+  /** 传则分页；不传则全量（首页精选等） */
+  page?: number;
+  limit?: number;
 }) => axios({ url: 'api/gallery/list', method: 'get', params });

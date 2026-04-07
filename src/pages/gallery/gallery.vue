@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import { onLoad, onShow } from "@dcloudio/uni-app";
 import { getGalleryList, type GalleryTypeKey } from "@/api/index.ts";
 import { staticAsset } from "@/utils/common";
+import { getApiAssetOrigin } from "@/utils/apiBase";
 
 type GalleryRow = {
   id: number;
@@ -36,7 +37,7 @@ const resolveImg = (src: string): string => {
   if (!s) return staticAsset("/static/logo.svg");
   if (/^https?:\/\//i.test(s)) return s;
   if (s.startsWith("/static/")) return staticAsset(s);
-  const base = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+  const base = getApiAssetOrigin();
   if (!base) return s.startsWith("/") ? s : `/${s}`;
   return s.startsWith("/") ? `${base}${s}` : `${base}/${s}`;
 };

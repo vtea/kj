@@ -18,6 +18,7 @@ import {
   type QuickJumpItem,
   type CommonEntranceItem,
 } from "@/api/index.ts";
+import { getApiAssetOrigin } from "@/utils/apiBase";
 import { siteLayout, loadSiteLayout } from "@/utils/siteLayout";
 import { homeNavItems } from "@/constants/homeNav";
 import { openUrl, staticAsset } from "@/utils/common";
@@ -263,7 +264,7 @@ const resolveBannerSrc = (src: string): string => {
   if (s.startsWith('/static/')) {
     return staticAsset(s);
   }
-  const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+  const base = getApiAssetOrigin();
   if (!base) return s.startsWith('/') ? s : `/${s}`;
   return s.startsWith('/') ? `${base}${s}` : `${base}/${s}`;
 };

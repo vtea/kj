@@ -1,9 +1,10 @@
 import axios from 'axios';
+import { getAxiosBaseURL } from '@/utils/apiBase';
 // import { ElNotification, ElMessage } from 'element-plus';
 // import { loading } from '@/utils/index';
 
 const config = {
-    baseURL: (import.meta.env.VITE_API_BASE_URL ?? '').trim() || 'http://127.0.0.1:8080/',
+    baseURL: getAxiosBaseURL(),
     timeout: 60 * 1000, // Timeout
     withCredentials: false // Check cross-site Access-Control
 };

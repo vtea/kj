@@ -35,10 +35,11 @@ if (api) {
   );
 }
 
-// 勿把 /static、/assets、/api、/uploads 回写成 index.html，否则 .svg 等会拿到 HTML 导致裂图
+// 勿把 /static、/assets、/api、/uploads 回写成 index.html（避免 .svg 等拿到 HTML）。
+// 勿使用嵌套括号形如 (?!x(/|$))，Vercel 会报 invalid-route-source-pattern。
 rewrites.push(
   routes.rewrite(
-    "/((?!static(/|$)|assets(/|$)|api(/|$)|uploads(/|$)).*)",
+    "/((?!static/|assets/|api/|uploads/).*)",
     "/index.html"
   )
 );

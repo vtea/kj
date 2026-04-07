@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed } from "vue";
 import { onLoad, onShow, onReachBottom } from "@dcloudio/uni-app";
 import { getGalleryList, type GalleryTypeKey } from "@/api/index.ts";
 import { staticAsset } from "@/utils/common";
@@ -47,16 +47,6 @@ const resolveImg = (src: string): string => {
   if (!base) return s.startsWith("/") ? s : `/${s}`;
   return s.startsWith("/") ? `${base}${s}` : `${base}/${s}`;
 };
-
-/**
- * 入口：`/pages/gallery/gallery?region=aomen|xianggang|sicai`（sicai 展示为「其他图库」，不传频道则拉取全部）
- */
-onLoad((options?: Record<string, string>) => {
-  const t = options?.region ?? options?.gallery_type;
-  if (t === "aomen" || t === "xianggang" || t === "sicai") {
-    regionTab.value = t;
-  }
-});
 
 /** 从首页返回或切回标签时 onShow 会重复触发，节流以减少重复请求 */
 const GALLERY_LIST_REFRESH_MS = 90_000;
@@ -129,16 +119,23 @@ const fetchGallery = async (reset: boolean) => {
   }
 };
 
-watch(regionTab, () => {
+/**
+ * 入口：`/pages/gallery/gallery?region=aomen|xianggang|sicai`（sicai 为「其他图库」；列表分页每页 10 条）
+ */
+onLoad((options?: Record<string, string>) => {
+  const t = options?.region ?? options?.gallery_type;
+  if (t === "aomen" || t === "xianggang" || t === "sicai") {
+    regionTab.value = t;
+  }
   fetchGallery(true);
 });
 
 onShow(() => {
   const now = Date.now();
-  if (
-    lastGalleryListFetchAt > 0 &&
-    now - lastGalleryListFetchAt < GALLERY_LIST_REFRESH_MS
-  ) {
+  if (lastGalleryListFetchAt === 0) {
+    return;
+  }
+  if (now - lastGalleryListFetchAt < GALLERY_LIST_REFRESH_MS) {
     return;
   }
   fetchGallery(true);
@@ -175,7 +172,9 @@ const filteredList = computed(() => {
 });
 
 const setRegion = (k: GalleryTypeKey) => {
+  if (regionTab.value === k) return;
   regionTab.value = k;
+  fetchGallery(true);
 };
 
 const toggleYear = (year: string, bw: boolean) => {

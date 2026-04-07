@@ -491,8 +491,8 @@ const onQuickJumpTap = (item: QuickJumpItem, flatIndex: number) => {
   onBannerTap({ id: item.id, image: "", url: u });
 };
 
-/** 首页精选图库：每页条数（与当前彩种 tab 一致：澳门 / 香港 各拉对应分区） */
-const HOME_GALLERY_PAGE_SIZE = 8;
+/** 首页精选图库：每页条数（与接口上限 10 一致；触底再拉下一页） */
+const HOME_GALLERY_PAGE_SIZE = 10;
 
 /**
  * 绿标 tab → 图库 API 分区（与开奖数据源一致）
@@ -524,7 +524,7 @@ type HomeGalleryCard = {
   sicai_channel: number | null;
 };
 
-/** 当前彩种下已加载的图库列表（首屏 8 条，触底追加下一页） */
+/** 当前彩种下已加载的图库列表（首屏 10 条，触底追加下一页） */
 const homeGalleryFull = ref<HomeGalleryCard[]>([]);
 /** 下一页请求页码（从 1 起；首屏成功后为 2） */
 const homeGalleryNextPage = ref(1);
@@ -563,7 +563,7 @@ const sliceGalleryToCards = (
 };
 
 /**
- * 主滚动区触底：请求下一页 8 条（同当前彩种分区）
+ * 主滚动区触底：请求下一页（同当前彩种分区）
  */
 const loadMoreHomeGallery = async () => {
   if (!homeGalleryHasMore.value || gallerySpotLoading.value || galleryMoreLoading.value)
@@ -616,7 +616,7 @@ onReachBottom(() => {
 type GalleryListMeta = { has_more?: boolean; total?: number };
 
 /**
- * 按当前绿标 tab 拉取对应分区图库（jianada→sicai，aomen→aomen，xianggang→xianggang），分页每页 8 条
+ * 按当前绿标 tab 拉取对应分区图库（jianada→sicai，aomen→aomen，xianggang→xianggang），分页每页 10 条
  */
 const loadHomeGallerySpot = async (reset = true) => {
   if (reset) {

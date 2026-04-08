@@ -4,7 +4,10 @@ import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
 import { getSx } from "@/utils/zodiac";
 import { openUrl } from "@/utils/common";
-import { lotteryBallImageStyle, lotteryBallWave } from "@/utils/lotteryBall";
+import {
+  lotteryBallImageStyleForWave,
+  lotteryBallWave,
+} from "@/utils/lotteryBall";
 
 const emit = defineEmits<{
   refresh: [];
@@ -125,7 +128,7 @@ defineExpose({ init });
         <div
           class="kball"
           :class="`kball--wave-${lotteryBallWave(listData[key])}`"
-          :style="lotteryBallImageStyle"
+          :style="lotteryBallImageStyleForWave(lotteryBallWave(listData[key]))"
         >
           <span class="kball-num">{{ listData[key] || "?" }}</span>
         </div>
@@ -136,7 +139,7 @@ defineExpose({ init });
         <div
           class="kball kball-te"
           :class="`kball--wave-${lotteryBallWave(listData.code7)}`"
-          :style="lotteryBallImageStyle"
+          :style="lotteryBallImageStyleForWave(lotteryBallWave(listData.code7))"
         >
           <span class="kball-num">{{ listData.code7 || "?" }}</span>
         </div>
@@ -201,7 +204,7 @@ defineExpose({ init });
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 14px 12px 12px;
+  padding: 16px 10px 14px;
 }
 .kball-item {
   display: flex;
@@ -212,15 +215,15 @@ defineExpose({ init });
 }
 .kball {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   box-sizing: border-box;
-  padding-top: 6px;
-  font-size: 19px;
+  padding-top: 8px;
+  font-size: 24px;
   font-weight: 800;
   line-height: 1;
   background-color: #cfd8dc;
@@ -231,8 +234,8 @@ defineExpose({ init });
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  padding: 3px 5px;
+  min-width: 28px;
+  padding: 4px 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.96);
   color: #141414;
@@ -242,27 +245,24 @@ defineExpose({ init });
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   transform: translateY(-1px);
 }
-.kball--wave-red {
-  box-shadow: 0 0 0 2px #d32f2f, 0 2px 8px rgba(0, 0, 0, 0.12);
-}
-.kball--wave-green {
-  box-shadow: 0 0 0 2px #2e7d32, 0 2px 8px rgba(0, 0, 0, 0.12);
-}
+/* 波色由底图 lan/hong/lu 呈现，仅保留统一投影 */
+.kball--wave-red,
+.kball--wave-green,
 .kball--wave-blue {
-  box-shadow: 0 0 0 2px #1565c0, 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
 }
 .kball--wave-muted {
   box-shadow: 0 0 0 2px #bdbdbd, 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 .kball-te {
-  border: 2.5px solid #e8c326;
+  border: 3px solid #e8c326;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.35),
     0 3px 12px rgba(232, 195, 38, 0.32);
 }
 .ksx {
-  margin-top: 4px;
-  font-size: 11px;
+  margin-top: 6px;
+  font-size: 14px;
   color: var(--c-text-secondary, #666);
   font-weight: 700;
   line-height: 1;
@@ -270,18 +270,18 @@ defineExpose({ init });
 .kball-plus {
   display: flex;
   align-items: center;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
   color: #bbb;
-  padding: 0 3px;
+  padding: 0 2px;
   align-self: flex-start;
-  margin-top: 14px;
+  margin-top: 18px;
   height: auto;
-  min-height: 20px;
+  min-height: 24px;
 }
 
 .kballs--drawing {
-  min-height: 72px;
+  min-height: 88px;
   align-items: center;
   justify-content: center;
   padding: 18px 14px;

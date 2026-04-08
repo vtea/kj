@@ -3,7 +3,10 @@ import { ref, onMounted, onUnmounted } from "vue";
 import { onLoad, onReachBottom } from "@dcloudio/uni-app";
 import { getHistoryPage, type HistoryModuleKey } from "@/api/index.ts";
 import { getSx } from "@/utils/zodiac";
-import { lotteryBallImageStyle, lotteryBallWave } from "@/utils/lotteryBall";
+import {
+  lotteryBallImageStyleForWave,
+  lotteryBallWave,
+} from "@/utils/lotteryBall";
 
 const codes = ["code1", "code2", "code3", "code4", "code5", "code6"];
 
@@ -148,7 +151,7 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
             <div
               class="hball"
               :class="`hball--wave-${lotteryBallWave(item[k])}`"
-              :style="lotteryBallImageStyle"
+              :style="lotteryBallImageStyleForWave(lotteryBallWave(item[k]))"
             >
               <span class="hball-num">{{ item?.[k] ?? "--" }}</span>
             </div>
@@ -159,7 +162,7 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
             <div
               class="hball hball-te"
               :class="`hball--wave-${lotteryBallWave(item.code7)}`"
-              :style="lotteryBallImageStyle"
+              :style="lotteryBallImageStyleForWave(lotteryBallWave(item.code7))"
             >
               <span class="hball-num">{{ item?.code7 ?? "--" }}</span>
             </div>
@@ -264,7 +267,7 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 12px 10px 10px;
+  padding: 14px 8px 12px;
 }
 .hball-item {
   flex: 1;
@@ -275,15 +278,15 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
 }
 .hball {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   box-sizing: border-box;
-  padding-top: 5px;
-  font-size: 16px;
+  padding-top: 6px;
+  font-size: 20px;
   font-weight: 800;
   line-height: 1;
   background-color: #cfd8dc;
@@ -293,8 +296,8 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  padding: 2px 4px;
+  min-width: 24px;
+  padding: 3px 5px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.96);
   color: #141414;
@@ -304,27 +307,23 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   transform: translateY(-1px);
 }
-.hball--wave-red {
-  box-shadow: 0 0 0 2px #d32f2f, 0 2px 6px rgba(0, 0, 0, 0.12);
-}
-.hball--wave-green {
-  box-shadow: 0 0 0 2px #2e7d32, 0 2px 6px rgba(0, 0, 0, 0.12);
-}
+.hball--wave-red,
+.hball--wave-green,
 .hball--wave-blue {
-  box-shadow: 0 0 0 2px #1565c0, 0 2px 6px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
 }
 .hball--wave-muted {
   box-shadow: 0 0 0 2px #bdbdbd, 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 .hball-te {
-  border: 2px solid #e8c326;
+  border: 2.5px solid #e8c326;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.35),
     0 3px 10px rgba(232, 195, 38, 0.28);
 }
 .hsx {
-  margin-top: 3px;
-  font-size: 10px;
+  margin-top: 5px;
+  font-size: 13px;
   color: var(--c-text-secondary, #666);
   font-weight: 700;
   line-height: 1;
@@ -332,13 +331,13 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
 .hball-sep {
   display: flex;
   align-items: center;
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 700;
   color: #bbb;
   align-self: flex-start;
-  margin-top: 11px;
+  margin-top: 14px;
   height: auto;
-  min-height: 18px;
+  min-height: 22px;
   padding: 0 2px;
   flex-shrink: 0;
 }

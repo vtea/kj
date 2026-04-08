@@ -1,17 +1,41 @@
 import { staticAsset } from "@/utils/common";
 import { getSx } from "@/utils/zodiac";
 
-export const lotteryBallBgUrl = staticAsset("/static/lottery-ball-bg.png");
-
-/** 开奖球共用背景图样式（红/绿/蓝波用色环区分）；背景略偏上，让浅色区对准数字区 */
-export const lotteryBallImageStyle: Record<string, string> = {
-  backgroundImage: `url("${lotteryBallBgUrl}")`,
-  backgroundSize: "cover",
-  backgroundPosition: "50% 28%",
-  backgroundRepeat: "no-repeat",
-};
+/** 蓝 / 红 / 绿 波底图（`static/lan.png`、`hong.png`、`lu.png`） */
+export const lotteryBallBgLan = staticAsset("/static/lan.png");
+export const lotteryBallBgHong = staticAsset("/static/hong.png");
+export const lotteryBallBgLu = staticAsset("/static/lu.png");
 
 export type LotteryBallWave = "red" | "green" | "blue" | "muted";
+
+const WAVE_BG: Record<Exclude<LotteryBallWave, "muted">, string> = {
+  blue: lotteryBallBgLan,
+  red: lotteryBallBgHong,
+  green: lotteryBallBgLu,
+};
+
+/**
+ * 按波色返回球体背景样式；muted 无图，沿用 `.kball` / `.hball` 默认底色
+ */
+export function lotteryBallImageStyleForWave(
+  wave: LotteryBallWave
+): Record<string, string> {
+  if (wave === "muted") {
+    return {
+      backgroundImage: "none",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+    };
+  }
+  const url = WAVE_BG[wave];
+  return {
+    backgroundImage: `url("${url}")`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+  };
+}
 
 export function lotteryBallWave(code: unknown): LotteryBallWave {
   if (code == null) return "muted";

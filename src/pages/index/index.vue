@@ -62,11 +62,14 @@ watch(
   (newTime, oldTime) => {
     const aTime = newTime.getTime();
     const bTime = nextDrawTime.value.getTime();
-    const b = new Date(bTime - aTime).getMinutes();
-    if (bTime > aTime && b <= 5) {
-      // 调用接口
+    // 须用时间差换算「剩余整分钟」，勿用 new Date(diff).getMinutes()（那是 1970 时刻的「分」位，超过约 1 小时会算错并误清空卡片）
+    const diffMs = bTime - aTime;
+    if (!Number.isFinite(diffMs)) return;
+    const minutesLeft = Math.floor(diffMs / 60_000);
+    if (bTime > aTime && minutesLeft <= 5) {
+      // 距下一期截止 ≤5 分钟：清空展示，等待搅珠/新一期数据
       cardCanada.value?.init({}, 1);
-    } else if (bTime > aTime && b > 5) {
+    } else if (bTime > aTime && minutesLeft > 5) {
       getAll();
       clearInterval(intervalId);
     }
@@ -209,6 +212,8 @@ onShow(() => {
     now - lastHomeFullFetchAt < HOME_FULL_REFRESH_MS
   ) {
     ensureJianadaPolling();
+    // 整页节流期间仍拉常用入口：后台改「隐藏」后若不再请求会一直显示旧列表
+    loadCommonEntrance();
     return;
   }
   lastHomeFullFetchAt = now;
@@ -271,8 +276,13 @@ const resolveBannerSrc = (src: string): string => {
   return s.startsWith('/') ? `${base}${s}` : `${base}/${s}`;
 };
 
-/** 后台「常规管理 → 常用入口」；有数据则首页宫格用接口，否则回退 `homeNavItems` */
+/** 后台「常规管理 → 常用入口」 */
 const navHubApiList = ref<CommonEntranceItem[]>([]);
+/**
+ * 接口是否已成功返回过（含 list 为空）：用于区分「后台确实无条目」与「尚未加载/请求失败」。
+ * 若仅用 length>0 判断，后台全部隐藏时列表为空会误回退静态 `homeNavItems`，隐藏仍显示。
+ */
+const navHubApiLoadedOk = ref(false);
 
 /**
  * 拉取常用入口列表（仅 status=显示 且名称、图标非空）
@@ -290,16 +300,18 @@ const loadCommonEntrance = async () => {
         })).filter((x) => x.title !== '' && x.image !== '')
       : [];
     navHubApiList.value = list;
+    navHubApiLoadedOk.value = true;
   } catch {
     navHubApiList.value = [];
+    navHubApiLoadedOk.value = false;
   }
 };
 
 /**
- * 首页「常用入口」宫格：接口优先，空列表则用本地静态配置
+ * 首页「常用入口」宫格：接口成功则以接口为准（可为空）；仅请求失败时回退本地静态配置
  */
 const displayNavHubItems = computed(() => {
-  if (navHubApiList.value.length > 0) {
+  if (navHubApiLoadedOk.value) {
     return navHubApiList.value.map((it) => ({
       id: it.id,
       label: it.title,
@@ -494,10 +506,12 @@ const onQuickJumpTap = (item: QuickJumpItem, flatIndex: number) => {
 
 /** 首页精选图库：每页条数（与后台/接口上限一致；触底再拉下一页） */
 const HOME_GALLERY_PAGE_SIZE = GALLERY_LIST_PAGE_MAX;
+/** 午夜彩 tab：精选区展示澳门 + 香港各取最新条数（各一次请求，共 8 张） */
+const JIANADA_HOME_GALLERY_EACH = 4;
 
 /**
  * 绿标 tab → 图库 API 分区（与开奖数据源一致）
- * - jianada：后台 xtlhc / 常显示「午夜彩」→ 私彩图库 sicai（勿用澳门图）
+ * - jianada：首页精选区单独逻辑（澳门 4 + 香港 4）；无卡片点「更多」默认进澳门图库
  * - aomen：澳门图库
  * - xianggang：香港图库
  */
@@ -617,13 +631,19 @@ onReachBottom(() => {
 type GalleryListMeta = { has_more?: boolean; total?: number };
 
 /**
- * 按当前绿标 tab 拉取对应分区图库（jianada→sicai，aomen→aomen，xianggang→xianggang），分页每页 8 条
+ * 按当前绿标 tab 拉取对应分区图库：
+ * - 午夜彩：并行拉澳门 / 香港各最新 {@link JIANADA_HOME_GALLERY_EACH} 条，无触底翻页
+ * - 澳门 / 香港：单分区分页，每页 8 条
  */
 const loadHomeGallerySpot = async (reset = true) => {
   if (reset) {
     homeGalleryFull.value = [];
     homeGalleryNextPage.value = 1;
     homeGalleryHasMore.value = false;
+  }
+  const tab = activeGreenTab.value;
+  if (tab === "jianada" && !reset) {
+    return;
   }
   const useFullLoading = reset || homeGalleryFull.value.length === 0;
   if (useFullLoading) {
@@ -632,33 +652,47 @@ const loadHomeGallerySpot = async (reset = true) => {
     galleryMoreLoading.value = true;
   }
   try {
-    const tab = activeGreenTab.value;
-    const gt = greenTabToGalleryType(tab);
-    const tag = greenTabToGalleryRegionTag(tab);
-    const pageToFetch = homeGalleryNextPage.value;
-    const res = await getGalleryList({
-      gallery_type: gt,
-      page: pageToFetch,
-      limit: HOME_GALLERY_PAGE_SIZE,
-    });
-    const cards = sliceGalleryToCards(res, gt, tag);
-    const data = (res as { data?: GalleryListMeta })?.data;
-    if (reset) {
-      homeGalleryFull.value = cards;
-    } else {
-      homeGalleryFull.value = [...homeGalleryFull.value, ...cards];
-    }
-    if (typeof data?.has_more === "boolean") {
-      homeGalleryHasMore.value = data.has_more;
-    } else if (typeof data?.total === "number") {
-      homeGalleryHasMore.value = homeGalleryFull.value.length < data.total;
-    } else {
-      homeGalleryHasMore.value = cards.length >= HOME_GALLERY_PAGE_SIZE;
-    }
-    if (cards.length === 0) {
+    if (tab === "jianada") {
+      const lim = JIANADA_HOME_GALLERY_EACH;
+      const [resAm, resXg] = await Promise.all([
+        getGalleryList({ gallery_type: "aomen", page: 1, limit: lim }),
+        getGalleryList({ gallery_type: "xianggang", page: 1, limit: lim }),
+      ]);
+      const tagAm = greenTabToGalleryRegionTag("aomen");
+      const tagXg = greenTabToGalleryRegionTag("xianggang");
+      const cardsAm = sliceGalleryToCards(resAm, "aomen", tagAm);
+      const cardsXg = sliceGalleryToCards(resXg, "xianggang", tagXg);
+      homeGalleryFull.value = [...cardsAm, ...cardsXg];
       homeGalleryHasMore.value = false;
+      homeGalleryNextPage.value = 1;
     } else {
-      homeGalleryNextPage.value = pageToFetch + 1;
+      const gt = greenTabToGalleryType(tab);
+      const tag = greenTabToGalleryRegionTag(tab);
+      const pageToFetch = homeGalleryNextPage.value;
+      const res = await getGalleryList({
+        gallery_type: gt,
+        page: pageToFetch,
+        limit: HOME_GALLERY_PAGE_SIZE,
+      });
+      const cards = sliceGalleryToCards(res, gt, tag);
+      const data = (res as { data?: GalleryListMeta })?.data;
+      if (reset) {
+        homeGalleryFull.value = cards;
+      } else {
+        homeGalleryFull.value = [...homeGalleryFull.value, ...cards];
+      }
+      if (typeof data?.has_more === "boolean") {
+        homeGalleryHasMore.value = data.has_more;
+      } else if (typeof data?.total === "number") {
+        homeGalleryHasMore.value = homeGalleryFull.value.length < data.total;
+      } else {
+        homeGalleryHasMore.value = cards.length >= HOME_GALLERY_PAGE_SIZE;
+      }
+      if (cards.length === 0) {
+        homeGalleryHasMore.value = false;
+      } else {
+        homeGalleryNextPage.value = pageToFetch + 1;
+      }
     }
   } catch {
     if (reset) {
@@ -676,9 +710,12 @@ const loadHomeGallerySpot = async (reset = true) => {
  */
 const openGalleryPage = (card?: HomeGalleryCard) => {
   let url = "/pages/gallery/gallery";
+  const t = activeGreenTab.value;
   const region = card
     ? card.gallery_type
-    : greenTabToGalleryType(activeGreenTab.value);
+    : t === "jianada"
+      ? "aomen"
+      : greenTabToGalleryType(t);
   url += `?region=${encodeURIComponent(region)}`;
   uni.navigateTo({ url });
 };
@@ -991,8 +1028,12 @@ const goGalleryListFromPreview = () => {
         </div>
       </section>
 
-      <!-- 功能入口：扁平融入页面背景，无浅绿大底、无图标外圈阴影 -->
-      <section class="nav-hub" aria-label="功能入口">
+      <!-- 功能入口：扁平融入页面背景，无浅绿大底、无图标外圈阴影；接口返回空列表时不占位 -->
+      <section
+        v-if="displayNavHubItems.length > 0"
+        class="nav-hub"
+        aria-label="功能入口"
+      >
         <div class="nav-hub-head">
           <h2 class="nav-hub-title">常用入口</h2>
         </div>
@@ -1020,7 +1061,7 @@ const goGalleryListFromPreview = () => {
         </div>
       </section>
 
-      <!-- 精选图库：随当前彩种（午夜彩/xTlhc→其他图库 sicai，澳门→aomen，香港→xianggang） -->
+      <!-- 精选图库：午夜彩为澳门+香港各 4 条；澳门/香港为对应分区分页 -->
       <section class="home-gal-spot" aria-label="精选图库">
         <div class="home-gal-spot-head">
           <h2 class="home-gal-spot-title">精选图库</h2>

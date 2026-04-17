@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { getSiteLayout, type SiteLayoutPayload } from '@/api/index.ts';
 
 const emptyLayout: SiteLayoutPayload = {
+  site_name: '',
   header_logo: '',
   header_title: '',
   header_subtitle: '',

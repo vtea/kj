@@ -28,23 +28,29 @@ const cardCanada = ref();
 const canadaData = ref<any>({});
 const nextDrawTime = ref<any>(new Date());
 const getAll = async () => {
-  const { data } = await getIndexLast();
-  cardCanada.value?.init(data?.last_data, 1);
-  canadaData.value = data?.last_data ?? {};
-  nextDrawTime.value = new Date(data?.last_data?.nextTime);
+  try {
+    const { data } = await getIndexLast();
+    cardCanada.value?.init(data?.last_data, 1);
+    canadaData.value = data?.last_data ?? {};
+    nextDrawTime.value = new Date(data?.last_data?.nextTime);
 
-  // 清理之前的定时器
-  if (intervalId) {
-    clearInterval(intervalId);
-  }
+    // 清理之前的定时器
+    if (intervalId) {
+      clearInterval(intervalId);
+    }
 
-  const hasUnopened = openUrl(data?.last_data);
-  if (hasUnopened) {
-    // 如果有未开奖的字段，10秒后重新获取
-    intervalId = setTimeout(getAll, 10000);
-  } else {
-    // 如果都已开奖，开始定时更新时间
-    intervalId = setInterval(updateTime, 10000);
+    const hasUnopened = openUrl(data?.last_data);
+    if (hasUnopened) {
+      // 如果有未开奖的字段，10秒后重新获取
+      intervalId = setTimeout(() => {
+        void getAll();
+      }, 10000);
+    } else {
+      // 如果都已开奖，开始定时更新时间
+      intervalId = setInterval(updateTime, 10000);
+    }
+  } catch (e) {
+    console.error("getAll / getIndexLast error:", e);
   }
 };
 /**
@@ -70,7 +76,7 @@ watch(
       // 距下一期截止 ≤5 分钟：清空展示，等待搅珠/新一期数据
       cardCanada.value?.init({}, 1);
     } else if (bTime > aTime && minutesLeft > 5) {
-      getAll();
+      void getAll();
       clearInterval(intervalId);
     }
   },
@@ -151,9 +157,9 @@ const loadCardData = async (tab: GreenTab) => {
     intervalId = null
   }
 
-  if (tab === 'jianada') {
-    await getAll()
-    startPolling10s()
+  if (tab === "jianada") {
+    await getAll();
+    startPolling10s();
   } else if (tab === 'aomen') {
     try {
       const { data } = await getAomen()
@@ -238,7 +244,7 @@ const ensureJianadaPolling = () => {
 };
 
 const runFullHomeRefresh = async () => {
-  loadSiteLayout();
+  await loadSiteLayout();
   loadBackupUrls();
   loadQuickJump();
   loadCommonEntrance();
@@ -350,6 +356,25 @@ const headerTitleText = computed(
   () => (siteLayout.value.header_title || '').trim() || '金多寶'
 );
 const headerSubtitleText = computed(() => (siteLayout.value.header_subtitle || '').trim());
+
+/** 浏览器标签 / navigationBar：仅后台「站点名称」(site_name)，无则空白 */
+const browserTabTitle = computed(() => (siteLayout.value.site_name || '').trim());
+watch(
+  browserTabTitle,
+  (t) => {
+    // #ifdef H5
+    if (typeof document !== 'undefined') {
+      document.title = t;
+    }
+    // #endif
+    try {
+      uni.setNavigationBarTitle({ title: t });
+    } catch {
+      /* 自定义导航页等场景可能无效 */
+    }
+  },
+  { immediate: true }
+);
 
 /**
  * 将接口返回的 list 规范为条目数组
@@ -506,12 +531,10 @@ const onQuickJumpTap = (item: QuickJumpItem, flatIndex: number) => {
 
 /** 首页精选图库：每页条数（与后台/接口上限一致；触底再拉下一页） */
 const HOME_GALLERY_PAGE_SIZE = GALLERY_LIST_PAGE_MAX;
-/** 午夜彩 tab：精选区展示澳门 + 香港各取最新条数（各一次请求，共 8 张） */
-const JIANADA_HOME_GALLERY_EACH = 4;
 
 /**
  * 绿标 tab → 图库 API 分区（与开奖数据源一致）
- * - jianada：首页精选区单独逻辑（澳门 4 + 香港 4）；无卡片点「更多」默认进澳门图库
+ * - jianada（午夜彩）：私彩图库 gallery_type=sicai，与后台「午夜彩」图库一致
  * - aomen：澳门图库
  * - xianggang：香港图库
  */
@@ -631,9 +654,7 @@ onReachBottom(() => {
 type GalleryListMeta = { has_more?: boolean; total?: number };
 
 /**
- * 按当前绿标 tab 拉取对应分区图库：
- * - 午夜彩：并行拉澳门 / 香港各最新 {@link JIANADA_HOME_GALLERY_EACH} 条，无触底翻页
- * - 澳门 / 香港：单分区分页，每页 8 条
+ * 按当前绿标 tab 拉取对应分区图库（午夜彩 / 澳门 / 香港均为单分区分页，每页 8 条）
  */
 const loadHomeGallerySpot = async (reset = true) => {
   if (reset) {
@@ -642,9 +663,6 @@ const loadHomeGallerySpot = async (reset = true) => {
     homeGalleryHasMore.value = false;
   }
   const tab = activeGreenTab.value;
-  if (tab === "jianada" && !reset) {
-    return;
-  }
   const useFullLoading = reset || homeGalleryFull.value.length === 0;
   if (useFullLoading) {
     gallerySpotLoading.value = true;
@@ -652,47 +670,32 @@ const loadHomeGallerySpot = async (reset = true) => {
     galleryMoreLoading.value = true;
   }
   try {
-    if (tab === "jianada") {
-      const lim = JIANADA_HOME_GALLERY_EACH;
-      const [resAm, resXg] = await Promise.all([
-        getGalleryList({ gallery_type: "aomen", page: 1, limit: lim }),
-        getGalleryList({ gallery_type: "xianggang", page: 1, limit: lim }),
-      ]);
-      const tagAm = greenTabToGalleryRegionTag("aomen");
-      const tagXg = greenTabToGalleryRegionTag("xianggang");
-      const cardsAm = sliceGalleryToCards(resAm, "aomen", tagAm);
-      const cardsXg = sliceGalleryToCards(resXg, "xianggang", tagXg);
-      homeGalleryFull.value = [...cardsAm, ...cardsXg];
-      homeGalleryHasMore.value = false;
-      homeGalleryNextPage.value = 1;
+    const gt = greenTabToGalleryType(tab);
+    const tag = greenTabToGalleryRegionTag(tab);
+    const pageToFetch = homeGalleryNextPage.value;
+    const res = await getGalleryList({
+      gallery_type: gt,
+      page: pageToFetch,
+      limit: HOME_GALLERY_PAGE_SIZE,
+    });
+    const cards = sliceGalleryToCards(res, gt, tag);
+    const data = (res as { data?: GalleryListMeta })?.data;
+    if (reset) {
+      homeGalleryFull.value = cards;
     } else {
-      const gt = greenTabToGalleryType(tab);
-      const tag = greenTabToGalleryRegionTag(tab);
-      const pageToFetch = homeGalleryNextPage.value;
-      const res = await getGalleryList({
-        gallery_type: gt,
-        page: pageToFetch,
-        limit: HOME_GALLERY_PAGE_SIZE,
-      });
-      const cards = sliceGalleryToCards(res, gt, tag);
-      const data = (res as { data?: GalleryListMeta })?.data;
-      if (reset) {
-        homeGalleryFull.value = cards;
-      } else {
-        homeGalleryFull.value = [...homeGalleryFull.value, ...cards];
-      }
-      if (typeof data?.has_more === "boolean") {
-        homeGalleryHasMore.value = data.has_more;
-      } else if (typeof data?.total === "number") {
-        homeGalleryHasMore.value = homeGalleryFull.value.length < data.total;
-      } else {
-        homeGalleryHasMore.value = cards.length >= HOME_GALLERY_PAGE_SIZE;
-      }
-      if (cards.length === 0) {
-        homeGalleryHasMore.value = false;
-      } else {
-        homeGalleryNextPage.value = pageToFetch + 1;
-      }
+      homeGalleryFull.value = [...homeGalleryFull.value, ...cards];
+    }
+    if (typeof data?.has_more === "boolean") {
+      homeGalleryHasMore.value = data.has_more;
+    } else if (typeof data?.total === "number") {
+      homeGalleryHasMore.value = homeGalleryFull.value.length < data.total;
+    } else {
+      homeGalleryHasMore.value = cards.length >= HOME_GALLERY_PAGE_SIZE;
+    }
+    if (cards.length === 0) {
+      homeGalleryHasMore.value = false;
+    } else {
+      homeGalleryNextPage.value = pageToFetch + 1;
     }
   } catch {
     if (reset) {
@@ -711,11 +714,7 @@ const loadHomeGallerySpot = async (reset = true) => {
 const openGalleryPage = (card?: HomeGalleryCard) => {
   let url = "/pages/gallery/gallery";
   const t = activeGreenTab.value;
-  const region = card
-    ? card.gallery_type
-    : t === "jianada"
-      ? "aomen"
-      : greenTabToGalleryType(t);
+  const region = card ? card.gallery_type : greenTabToGalleryType(t);
   url += `?region=${encodeURIComponent(region)}`;
   uni.navigateTo({ url });
 };
@@ -1061,7 +1060,7 @@ const goGalleryListFromPreview = () => {
         </div>
       </section>
 
-      <!-- 精选图库：午夜彩为澳门+香港各 4 条；澳门/香港为对应分区分页 -->
+      <!-- 精选图库：午夜彩 / 澳门 / 香港各对应后台分区的分页列表 -->
       <section class="home-gal-spot" aria-label="精选图库">
         <div class="home-gal-spot-head">
           <h2 class="home-gal-spot-title">精选图库</h2>
@@ -1081,7 +1080,7 @@ const goGalleryListFromPreview = () => {
           v-else-if="homeGalleryList.length === 0"
           class="home-gal-spot-hint home-gal-spot-hint--muted"
         >
-          暂无图库，请在后台添加并设为已显示
+          内部资料，仅会员可见
         </div>
         <div v-else class="home-gal-spot-grid">
           <div

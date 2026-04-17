@@ -32,6 +32,12 @@ function ensureH5StaticCopy(): Plugin {
 }
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // 消除控制台：依赖仍从 vue-router 深层路径导入时的弃用警告
+      "vue-router/dist/vue-router.esm-bundler.js": "vue-router",
+    },
+  },
   plugins: [uni(), ensureH5StaticCopy()],
   // Vite 5.2 仍走 sass.render（旧 API）；在 Dart Sass 2.0 前仅抑制控制台噪音
   css: {

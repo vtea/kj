@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, computed } from "vue";
+import { ref } from "vue";
 import { onLoad, onShow, onReachBottom } from "@dcloudio/uni-app";
 import {
   getGalleryList,
@@ -30,14 +30,6 @@ const rawList = ref<GalleryRow[]>([]);
 
 /** 地区：澳门 / 香港 / 其他（接口仍为 gallery_type=sicai） */
 const regionTab = ref<GalleryTypeKey>("aomen");
-
-/** 年份 + 显示模式（彩色 / 黑白为前端视图，无单独接口字段） */
-type YearPick = { year: string; bw: boolean } | null;
-const yearPick = ref<YearPick>(null);
-
-/** 系列筛选（按标题关键字本地过滤） */
-type CatKey = "all" | "paogou" | "book" | "network";
-const catTab = ref<CatKey>("all");
 
 /**
  * 拼接图片绝对地址
@@ -150,49 +142,10 @@ onReachBottom(() => {
   fetchGallery(false);
 });
 
-const filteredList = computed(() => {
-  return rawList.value.filter((item) => {
-    const title = String(item.title || "");
-    const expect = String(item.expect || "");
-    if (yearPick.value) {
-      const y = yearPick.value.year;
-      if (!expect.includes(y) && !title.includes(y)) return false;
-    }
-    switch (catTab.value) {
-      case "paogou":
-        if (!/跑狗|狗/.test(title)) return false;
-        break;
-      case "book":
-        if (!/书|籍|宝典|秘笈|册/.test(title)) return false;
-        break;
-      case "network":
-        if (!/网|全|综合/.test(title)) return false;
-        break;
-      default:
-        break;
-    }
-    return true;
-  });
-});
-
 const setRegion = (k: GalleryTypeKey) => {
   if (regionTab.value === k) return;
   regionTab.value = k;
   fetchGallery(true);
-};
-
-const toggleYear = (year: string, bw: boolean) => {
-  const cur = yearPick.value;
-  if (cur && cur.year === year && cur.bw === bw) {
-    yearPick.value = null;
-  } else {
-    yearPick.value = { year, bw };
-  }
-};
-
-const yearActive = (year: string, bw: boolean) => {
-  const p = yearPick.value;
-  return !!(p && p.year === year && p.bw === bw);
 };
 
 /**
@@ -221,7 +174,7 @@ const goBack = () => {
 };
 
 const onPreview = (item: GalleryRow) => {
-  const urls = filteredList.value.map((x) => x.image).filter(Boolean);
+  const urls = rawList.value.map((x) => x.image).filter(Boolean);
   const cur = item.image;
   if (!cur) return;
   uni.previewImage({ current: cur, urls: urls.length ? urls : [cur] });
@@ -233,19 +186,6 @@ const regionLabel: Record<GalleryTypeKey, string> = {
   sicai: "其他图库",
 };
 
-const yearOptions = [
-  { year: "2026", bw: false, label: "2026年\n彩色" },
-  { year: "2026", bw: true, label: "2026年\n黑白" },
-  { year: "2025", bw: false, label: "2025年\n彩色" },
-  { year: "2025", bw: true, label: "2025年\n黑白" },
-] as const;
-
-const catOptions: { key: CatKey; label: string }[] = [
-  { key: "paogou", label: "跑狗系列" },
-  { key: "book", label: "书籍系列" },
-  { key: "network", label: "全网系列" },
-  { key: "all", label: "更多" },
-];
 </script>
 
 <template>
@@ -272,49 +212,16 @@ const catOptions: { key: CatKey; label: string }[] = [
 
     <div class="gal-divider" />
 
-    <!-- 年份 + 彩/黑（横向滚动） -->
-    <div class="gal-year-scroll">
-      <button
-        v-for="(opt, idx) in yearOptions"
-        :key="idx"
-        type="button"
-        class="gal-year-item"
-        :class="{
-          on: yearActive(opt.year, opt.bw),
-          teal: !opt.bw,
-          gray: opt.bw,
-        }"
-        @click="toggleYear(opt.year, opt.bw)"
-      >
-        <span class="gal-year-icon" aria-hidden="true">图</span>
-        <span class="gal-year-text">{{ opt.label }}</span>
-      </button>
-    </div>
-
-    <!-- 系列筛选 -->
-    <div class="gal-cat-row">
-      <button
-        v-for="c in catOptions"
-        :key="c.key"
-        type="button"
-        class="gal-cat-btn"
-        :class="{ active: catTab === c.key, more: c.key === 'all' }"
-        @click="catTab = c.key"
-      >
-        {{ c.label }}
-      </button>
-    </div>
-
     <!-- 瀑布双列 -->
     <div class="gal-body">
       <div v-if="loading && rawList.length === 0" class="gal-loading">加载中…</div>
-      <div v-else-if="filteredList.length === 0" class="gal-empty">
-        暂无图库，请在后台添加并设为「已显示」
+      <div v-else-if="rawList.length === 0" class="gal-empty">
+        内部资料，仅会员可见
       </div>
       <template v-else>
         <div class="gal-masonry">
           <div
-            v-for="item in filteredList"
+            v-for="item in rawList"
             :key="item.id"
             class="gal-card"
             @click="onPreview(item)"
@@ -323,12 +230,7 @@ const catOptions: { key: CatKey; label: string }[] = [
               <span class="gal-cap-expect">{{ item.expect || "—" }}</span>
               <span class="gal-cap-title">{{ item.title || "未命名" }}</span>
             </div>
-            <image
-              class="gal-card-img"
-              :class="{ 'gal-card-img--bw': yearPick?.bw }"
-              :src="item.image"
-              mode="widthFix"
-            />
+            <image class="gal-card-img" :src="item.image" mode="widthFix" />
           </div>
         </div>
         <div v-if="loadingMore" class="gal-load-more">加载更多…</div>
@@ -447,94 +349,6 @@ const catOptions: { key: CatKey; label: string }[] = [
   margin: 0 12px 8px;
 }
 
-.gal-year-scroll {
-  display: flex;
-  gap: 12px;
-  padding: 4px 12px 12px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-}
-.gal-year-item {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 76px;
-  padding: 8px 4px 10px;
-  border: 2px solid transparent;
-  border-radius: 14px;
-  background: #fff;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  &.teal .gal-year-icon {
-    background: linear-gradient(145deg, #26a69a, #00897b);
-  }
-  &.gray .gal-year-icon {
-    background: linear-gradient(145deg, #9e9e9e, #616161);
-  }
-  &.on {
-    border-color: var(--c-green);
-    box-shadow: 0 4px 14px rgba(46, 125, 50, 0.25);
-  }
-}
-.gal-year-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 900;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-.gal-year-text {
-  font-size: 10px;
-  font-weight: 800;
-  color: var(--c-text-secondary);
-  text-align: center;
-  line-height: 1.25;
-  white-space: pre-line;
-}
-
-.gal-cat-row {
-  display: flex;
-  gap: 8px;
-  padding: 0 10px 12px;
-  flex-wrap: wrap;
-}
-.gal-cat-btn {
-  flex: 1;
-  min-width: calc(25% - 8px);
-  padding: 9px 6px;
-  border-radius: 999px;
-  border: 2px solid var(--c-green-light);
-  background: var(--c-green);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  &.more {
-    background: #f1f8e9;
-    color: var(--c-green);
-    border-color: var(--c-green-light);
-  }
-  &.active:not(.more) {
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.15);
-  }
-  &.active.more {
-    background: var(--c-green);
-    color: #fff;
-    border-color: var(--c-green);
-  }
-}
-
 .gal-body {
   flex: 1;
   padding: 0 8px 16px;
@@ -598,8 +412,5 @@ const catOptions: { key: CatKey; label: string }[] = [
   display: block;
   vertical-align: top;
   background: #f5f5f5;
-}
-.gal-card-img--bw {
-  filter: grayscale(1) contrast(1.05);
 }
 </style>

@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { ref, onMounted, onUnmounted } from "vue";
 import { onLoad, onReachBottom } from "@dcloudio/uni-app";
+import dayjs from "dayjs";
 import { getHistoryPage, type HistoryModuleKey } from "@/api/index.ts";
 import { getSx } from "@/utils/zodiac";
 import {
@@ -114,6 +115,14 @@ onUnmounted(() => {
 
 const goBack = () => uni.navigateBack();
 
+/** 历史记录开奖时间：仅展示年月日 */
+const fmtOpenDate = (t: unknown) => {
+  if (t == null || String(t).trim() === "") return "--";
+  const s = String(t);
+  const d = dayjs(s);
+  return d.isValid() ? d.format("YYYY-MM-DD") : s.slice(0, 10);
+};
+
 /**
  * 列表项稳定 key：优先主键 id
  * @param item 单行开奖数据
@@ -144,7 +153,7 @@ const rowKey = (item: Record<string, unknown>, index: number) => {
       >
         <div class="hist-meta">
           <span class="hist-expect">第 {{ item?.expect ?? "--" }} 期</span>
-          <span class="hist-time">{{ item?.openTime ?? "--" }}</span>
+          <span class="hist-time">{{ fmtOpenDate(item?.openTime) }}</span>
         </div>
         <div class="hist-balls">
           <div class="hball-item" v-for="k in codes" :key="k">

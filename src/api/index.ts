@@ -79,6 +79,8 @@ export const getHomeBanners = (params?: { position?: string }) =>
 
 /** 后台「基础配置」中的页头/页尾/统计/客服片段 */
 export type SiteLayoutPayload = {
+  /** 后台「系统配置 → 基础配置」站点名称（config.name） */
+  site_name: string;
   /** 后台上传或相对路径，空则用站内默认 /static/logo.svg */
   header_logo: string;
   header_title: string;

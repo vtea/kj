@@ -94,7 +94,7 @@ onMounted(() => {
 });
 onUnmounted(() => { if (cdTimer) clearInterval(cdTimer); });
 
-const fmtNextTime = (t: string) => t ? dayjs(t).format("YYYY-MM-DD HH:mm") : "--";
+const fmtNextTime = (t: string) => (t ? dayjs(t).format("YYYY-MM-DD") : "--");
 
 const codes = ['code1','code2','code3','code4','code5','code6'];
 
